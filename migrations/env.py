@@ -1,6 +1,3 @@
-import os
-from dotenv import load_dotenv
-
 import asyncio
 from logging.config import fileConfig
 
@@ -10,13 +7,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from models import Base
-
-# from src.conf.config import settings
-# from src.entity.models import Base
-
-load_dotenv()
-db_url = os.getenv("DB_URL")
+from src.conf.config import settings
+from src.entity.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -32,8 +24,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
-# config.set_main_option("sqlalchemy.url", settings.DB_URL)
-config.set_main_option("sqlalchemy.url", db_url)
+config.set_main_option("sqlalchemy.url", settings.DB_URL)
 
 
 # other values from the config, defined by the needs of env.py,
