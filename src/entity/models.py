@@ -1,11 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, func
+from sqlalchemy import String, DateTime, Date, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from src.conf import constants
-
-print("Hello from models.py")
 
 
 class Base(DeclarativeBase):

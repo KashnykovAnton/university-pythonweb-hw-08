@@ -12,3 +12,5 @@ alembic revision --autogenerate -m "Init"
 alembic upgrade head
 
 For pagination: https://uriyyo-fastapi-pagination.netlify.app/
+
+run script - fastapi dev ./main.py

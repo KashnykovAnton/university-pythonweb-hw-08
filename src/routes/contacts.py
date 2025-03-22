@@ -3,14 +3,11 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
 from src.database.db import get_db
 from src.services.contacts import ContactService
-
-# from src.models import Contact
-from src.schemas.contact import ContactSchema, ContactResponse
+from src.schemas.contacts import ContactSchema, ContactResponse, ContactUpdateSchema
+from src.conf import messages
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
 logger = logging.getLogger("uvicorn.error")
@@ -22,82 +19,84 @@ async def get_contacts(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-       contact_service = ContactService(db)
+    contact_service = ContactService(db)
     return await contact_service.get_contacts(limit, offset)
 
 
-@router.get("/{contact_id}", response_model=ContactResponse)
+@router.get(
+    "/search",
+    response_model=list[ContactResponse] | dict,
+    description="Контакти повинні бути доступні для пошуку за іменем, прізвищем чи адресою електронної пошти (Query параметри)",
+)
+async def search_contacts(
+    query: str = Query(..., description=messages.contact_search_description.get("ua")),
+    db: AsyncSession = Depends(get_db),
+):
+    contact_service = ContactService(db)
+    search_contacts = await contact_service.search_contacts(query)
+    if not search_contacts:
+        return {"message": messages.no_search_contacts.get("ua")}
+    return search_contacts
+
+
+@router.get(
+    "/upcoming_birthdays",
+    response_model=list[ContactResponse] | dict,
+    description="API повинен мати змогу отримати список контактів з днями народження на найближчі 7 днів",
+)
+async def get_upcoming_birthdays(db: AsyncSession = Depends(get_db)):
+    contact_service = ContactService(db)
+    birthday_contacts = await contact_service.upcoming_birthdays()
+    if not birthday_contacts:
+        return {"message": messages.no_upcoming_birthdays.get("ua")}
+    return birthday_contacts
+
+
+@router.get(
+    "/{contact_id}",
+    response_model=ContactResponse,
+    name="Get contact by id",
+    description="Description of the endpoint",
+    response_description="Response description",
+)
 async def get_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
-    contact = await db.get(Contact, contact_id)
+    contact_service = ContactService(db)
+    contact = await contact_service.get_contact(contact_id)
     if not contact:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=messages.contact_not_found.get("ua"),
         )
     return contact
 
 
 @router.post("/", response_model=ContactResponse, status_code=status.HTTP_201_CREATED)
 async def create_contact(body: ContactSchema, db: AsyncSession = Depends(get_db)):
-    contact = Contact(**body.dict())
-    db.add(contact)
-    await db.commit()
-    await db.refresh(contact)
-    return contact
+    contact_service = ContactService(db)
+    return await contact_service.create_contact(body)
 
 
 @router.put("/{contact_id}", response_model=ContactResponse)
 async def update_contact(
-    contact_id: int, body: ContactSchema, db: AsyncSession = Depends(get_db)
+    contact_id: int, body: ContactUpdateSchema, db: AsyncSession = Depends(get_db)
 ):
-    contact = await db.get(Contact, contact_id)
+    contact_service = ContactService(db)
+    contact = await contact_service.update_contact(contact_id, body)
     if not contact:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=messages.contact_not_found.get("ua"),
         )
-    for key, value in body.dict().items():
-        setattr(contact, key, value)
-    await db.commit()
-    await db.refresh(contact)
     return contact
 
 
 @router.delete("/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
-    contact = await db.get(Contact, contact_id)
+    contact_service = ContactService(db)
+    contact = await contact_service.remove_contact(contact_id)
     if not contact:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=messages.contact_not_found.get("ua"),
         )
-    await db.delete(contact)
-    await db.commit()
     return None
-
-
-@router.get("/search", response_model=list[ContactResponse])
-async def search_contacts(
-    first_name: str | None = None,
-    last_name: str | None = None,
-    email: str | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    query = select(Contact)
-    if first_name:
-        query = query.filter(Contact.first_name.ilike(f"%{first_name}%"))
-    if last_name:
-        query = query.filter(Contact.last_name.ilike(f"%{last_name}%"))
-    if email:
-        query = query.filter(Contact.email.ilike(f"%{email}%"))
-    result = await db.execute(query)
-    return result.scalars().all()
-
-
-@router.get("/upcoming_birthdays", response_model=list[ContactResponse])
-async def get_upcoming_birthdays(db: AsyncSession = Depends(get_db)):
-    today = date.today()
-    next_week = today + timedelta(days=7)
-
-    query = select(Contact).where(
-        (Contact.birthday >= today) & (Contact.birthday <= next_week)
-    )
-    result = await db.execute(query)
-    return result.scalars().all()
