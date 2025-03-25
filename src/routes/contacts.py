@@ -24,35 +24,6 @@ async def get_contacts(
 
 
 @router.get(
-    "/search",
-    response_model=list[ContactResponse] | dict,
-    description="Контакти повинні бути доступні для пошуку за іменем, прізвищем чи адресою електронної пошти (Query параметри)",
-)
-async def search_contacts(
-    query: str = Query(..., description=messages.contact_search_description.get("ua")),
-    db: AsyncSession = Depends(get_db),
-):
-    contact_service = ContactService(db)
-    search_contacts = await contact_service.search_contacts(query)
-    if not search_contacts:
-        return {"message": messages.no_search_contacts.get("ua")}
-    return search_contacts
-
-
-@router.get(
-    "/upcoming_birthdays",
-    response_model=list[ContactResponse] | dict,
-    description="API повинен мати змогу отримати список контактів з днями народження на найближчі 7 днів",
-)
-async def get_upcoming_birthdays(db: AsyncSession = Depends(get_db)):
-    contact_service = ContactService(db)
-    birthday_contacts = await contact_service.upcoming_birthdays()
-    if not birthday_contacts:
-        return {"message": messages.no_upcoming_birthdays.get("ua")}
-    return birthday_contacts
-
-
-@router.get(
     "/{contact_id}",
     response_model=ContactResponse,
     name="Get contact by id",
@@ -100,3 +71,26 @@ async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
             detail=messages.contact_not_found.get("ua"),
         )
     return None
+
+
+@router.get(
+    "/search/",
+    response_model=list[ContactResponse],
+    description="Контакти повинні бути доступні для пошуку за іменем, прізвищем чи адресою електронної пошти (Query параметри)",
+)
+async def search_contacts(
+    query: str = Query(..., description=messages.contact_search_description.get("ua")),
+    db: AsyncSession = Depends(get_db),
+):
+    contact_service = ContactService(db)
+    return await contact_service.search_contacts(query)
+
+
+@router.get(
+    "/upcoming_birthdays/",
+    response_model=list[ContactResponse],
+    description="API повинен мати змогу отримати список контактів з днями народження на найближчі 7 днів",
+)
+async def get_upcoming_birthdays(db: AsyncSession = Depends(get_db)):
+    contact_service = ContactService(db)
+    return await contact_service.upcoming_birthdays()
